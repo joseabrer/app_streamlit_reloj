@@ -1,13 +1,13 @@
 # app_streamlit_reloj.py
 # Ejecuta:
-#   python -m streamlit run app_streamlit_reloj.py --server.headless true --server.port 8501
+#   python -m streamlit run app_streamlit_reloj.py --server.port 8502
 # Requisito Windows (zona horaria IANA):  pip install tzdata
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Optional, List, Tuple
-import base64, json
+import base64, json, math
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -24,10 +24,10 @@ DIGITAL_STACK = "'DS-Digital','Digital-7','Segment7Standard','Share Tech Mono','
 
 # GIFs opcionales (mismos índices que TIMEZONES). Deja "" para omitir.
 GIF_PATHS = [
-    r"C:\Users\joser\Documents\Proyectos_python\mascota1.gif",
-    r"C:\Users\joser\Documents\Proyectos_python\mascota2.gif",
-    r"C:\Users\joser\Documents\Proyectos_python\mascota3.gif",
-    r"C:\Users\joser\Documents\Proyectos_python\mascota4.gif",
+    r"assets\mascota1.gif",
+    r"assets\mascota2.gif",
+    r"assets\mascota3.gif",
+    r"assets\mascota4.gif",
 ]
 GIF_SIZE_PX  = 64
 GIF_MINI_PX  = 24
@@ -58,8 +58,9 @@ st.markdown(f"<h2 style='margin:0'>{PAGE_TITLE}</h2>", unsafe_allow_html=True)
 st.markdown("<p style='margin:.25rem 0 1rem;color:#aab3c5'>Chile, España, México y EE. UU. — sin recargar la página.</p>",
             unsafe_allow_html=True)
 
+# Controles
 show_mini = st.checkbox("Mostrar versión mini", value=True)
-
+fixed_cols = st.number_input("Columnas mini (desktop)", min_value=1, max_value=4, value=2, step=1, help="Solo afecta escritorio; en móvil cae a 1 columna.")
 zones_json = json.dumps(_zones_payload(), ensure_ascii=False)
 
 # --------------------------- HTML + CSS + JS (client only tick) ---------------------------
@@ -93,7 +94,8 @@ html,body {{ background:var(--bg); color:#fff; font-family:system-ui,Segoe UI,Ro
 
 .mini-wrap {{ margin-top:10px }}
 .mini-title {{ color:var(--text-dim); font-size:.9rem; margin:6px 0 }}
-.mini-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px }}
+.mini-grid {{ display:grid; grid-template-columns:repeat({{fixed_cols}}, minmax(0,1fr)); gap:8px }}
+@media (max-width: 520px) {{ .mini-grid {{ grid-template-columns: 1fr; }} }}
 .mini-card {{
   background:linear-gradient(180deg,#0f1324,#0c1020); border:1px solid #1b2340; border-radius:12px; padding:10px 12px;
   box-shadow:inset 0 0 18px rgba(22,28,56,.45);
@@ -107,6 +109,7 @@ html,body {{ background:var(--bg); color:#fff; font-family:system-ui,Segoe UI,Ro
 .mini-pet img {{ width:{GIF_MINI_PX}px; height:auto; border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,.35) }}
 """
 
+# Ojo: doblamos llaves para que Python no intente formatearlas (JS usa ${...}).
 html = f"""
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>{css}</style></head>
@@ -182,6 +185,17 @@ document.addEventListener('DOMContentLoaded', () => {{
 </body></html>
 """
 
-# Altura del componente (ajústala si quieres)
-height = 520 + (220 if show_mini else 0)
-components.html(html, height=height, scrolling=False)
+# --- Calcular altura del iframe para que no corte la versión mini ---
+BASE_H = 420            # sección normal
+MINI_CARD_H = 92        # alto aprox de mini-card
+MINI_GAP = 8
+MINI_TITLE_H = 36
+if show_mini:
+    cols = max(1, int(fixed_cols))
+    rows = math.ceil(len(TIMEZONES) / cols)
+    height = BASE_H + MINI_TITLE_H + rows * (MINI_CARD_H + MINI_GAP) + 32
+else:
+    height = BASE_H
+
+# Permite scroll por si el contenedor se hace muy estrecho (responsive).
+components.html(html, height=height, scrolling=True)
